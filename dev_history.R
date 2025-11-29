@@ -12,12 +12,14 @@ aoi = opq_osm_id (
 ) |>
   opq_string () |>
   osmdata_sf () |> 
-  getElement("osm_multipolygons") |> 
-  st_transform(
-    crs = 25832L
-  )
+  getElement("osm_multipolygons")
 
-## download parcels
+aoi_utm = st_transform(
+  aoi
+  , crs = 25832L
+)
+
+## download parcels from wfs
 cli = ows4R::WFSClient$new(
   "https://geo5.service24.rlp.de/wfs/alkis_rp.fcgi"
   , serviceVersion = "2.0.0"
@@ -26,10 +28,45 @@ cli = ows4R::WFSClient$new(
 parcels = cli$getFeatures(
   "ave:Flurstueck"
   , bbox = paste(
-    st_bbox(aoi)
+    st_bbox(aoi_utm)
     , collapse = ","
   )
 ) |> 
   st_transform(
     crs = 4326L
   )
+
+## plot layers
+options(viewer = NULL)
+
+m = maplibre(
+  style = 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json'
+) |>
+  add_navigation_control(
+    visualize_pitch = TRUE
+  ) |>
+  add_layers_control(
+    collapsible = TRUE
+    , layers = c("aoi")
+  ) |>
+  fit_bounds(
+    unname(st_bbox(aoi))
+    , animate = FALSE
+  )
+
+m |>
+  geoarrowDeckgl:::addGeoArrowPolygonLayer(
+    data = aoi
+    , layerId = "aoi"
+    , geom_column_name = attr(aoi, "sf_column")
+    , render_options = geoarrowDeckgl:::renderOptions(
+      extruded = FALSE
+    )
+    , data_accessors = geoarrowDeckgl:::dataAccessors(
+      getFillColor = c(153, 142, 195, 128)
+      , getLineColor = c(153, 142, 195, 128)
+      , getLineWidth = 1
+    )
+    , popup = TRUE
+  )
+
